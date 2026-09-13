@@ -1,6 +1,7 @@
 package com.saleh.tamimaccounts
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.os.Bundle
 import android.content.*
 import android.graphics.Color
@@ -64,8 +65,8 @@ class ModernActivity : Activity() {
     private fun confirm(message:String,yes:()->Unit){AlertDialog.Builder(this).setMessage(message).setNegativeButton("إلغاء",null).setPositiveButton("موافق"){_,_->yes()}.show()}
     private fun toast(s:String){Toast.makeText(this,s,Toast.LENGTH_SHORT).show()}
     private fun share(c:Customer){val tx=db.transactions(c.id);val text=buildString{append("كشف حساب: ${c.name}\n");append("الهاتف: ${c.phone}\n\n");tx.forEach{append("${it.date} | ${it.type} | ${money.format(it.amount)} | ${it.note}\n")};append("\nالرصيد: ${money.format(c.balance)}")};startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply{type="text/plain";putExtra(Intent.EXTRA_TEXT,text)},"مشاركة الحساب"))}
-    private fun checkDb(){try{toast(db.integrityCheck())}catch(e:Exception){toast("فشل الفحص: ${e.message}")}}
+    private fun checkDb(){try{toast(if(db.integrityCheck()) "قاعدة البيانات سليمة" else "فشل فحص قاعدة البيانات")}catch(e:Exception){toast("فشل الفحص: ${e.message}")}}
     private fun pickDatabase(){startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{type="application/octet-stream";addCategory(Intent.CATEGORY_OPENABLE)},9001)}
-    override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){super.onActivityResult(requestCode,resultCode,data);if(requestCode==9001&&resultCode==RESULT_OK&&data?.data!=null){try{val r=DatabaseImportManager.import(this,data.data!!);toast("تم الاستيراد: ${r}");dashboard()}catch(e:Exception){toast("فشل الاستيراد: ${e.message}")}}}
+    override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){super.onActivityResult(requestCode,resultCode,data);if(requestCode==9001&&resultCode==RESULT_OK&&data?.data!=null){try{val r=DatabaseImportManager.import(this,data.data!!);toast("تم الاستيراد: ${r.message}");dashboard()}catch(e:Exception){toast("فشل الاستيراد: ${e.message}")}}}
     private fun EditText.num()=text.toString().toDoubleOrNull()?:0.0
 }
