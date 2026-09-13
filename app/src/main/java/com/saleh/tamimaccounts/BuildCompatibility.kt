@@ -15,8 +15,3 @@ fun DatabaseHelper.integrityCheck(): Boolean = try {
 
 fun DatabaseImportManager.import(context: Context, uri: Uri): DatabaseImportManager.Result =
     DatabaseImportManager.importDb(context, uri)
-
-/** Allows the existing check-db screen to display its Boolean result as Arabic text. */
-fun ModernActivity.toast(value: Boolean) {
-    toast(if (value) "قاعدة البيانات سليمة" else "فشل فحص سلامة قاعدة البيانات")
-}
