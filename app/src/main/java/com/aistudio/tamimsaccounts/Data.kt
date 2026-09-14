@@ -2,7 +2,7 @@ package com.aistudio.tamimsaccounts
 
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
-import kotlinx.serialization.Serializable
+
 
 enum class TransactionType { DEBIT, CREDIT }
 enum class InvoiceType { SALE, PURCHASE }
@@ -68,7 +68,7 @@ data class Invoice(
     foreignKeys = [
         ForeignKey(entity = Invoice::class, parentColumns = ["id"], childColumns = ["invoiceId"], onDelete = ForeignKey.CASCADE)
     ],
-    indexes = [Index("invoiceId")]
+    indices = [Index(value = ["invoiceId"])]
 )
 data class InvoiceItem(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -102,16 +102,16 @@ interface AccountsDao {
     fun getAllCustomers(): Flow<List<Customer>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertCustomer(customer: Customer)
+    fun insertCustomer(customer: Customer): Long
 
     @Update
-    suspend fun updateCustomer(customer: Customer)
+    fun updateCustomer(customer: Customer): Int
 
     @Delete
-    suspend fun deleteCustomer(customer: Customer)
+    fun deleteCustomer(customer: Customer): Int
 
     @Query("UPDATE customers SET balance = :newBalance WHERE id = :customerId")
-    suspend fun updateCustomerBalance(customerId: Int, newBalance: Double)
+    fun updateCustomerBalance(customerId: Int, newBalance: Double): Int
 
     // Transactions
     @Query("SELECT * FROM transactions ORDER BY date DESC")
@@ -121,56 +121,56 @@ interface AccountsDao {
     fun getTransactionsForCustomer(customerId: Int): Flow<List<Tx>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertTransaction(tx: Tx)
+    fun insertTransaction(tx: Tx): Long
 
     @Delete
-    suspend fun deleteTransaction(tx: Tx)
+    fun deleteTransaction(tx: Tx): Int
 
     // Products
     @Query("SELECT * FROM products ORDER BY name ASC")
     fun getAllProducts(): Flow<List<Product>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertProduct(product: Product)
+    fun insertProduct(product: Product): Long
 
     @Update
-    suspend fun updateProduct(product: Product)
+    fun updateProduct(product: Product): Int
 
     @Delete
-    suspend fun deleteProduct(product: Product)
+    fun deleteProduct(product: Product): Int
 
     // Expenses
     @Query("SELECT * FROM expenses ORDER BY date DESC")
     fun getAllExpenses(): Flow<List<Expense>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertExpense(expense: Expense)
+    fun insertExpense(expense: Expense): Long
     
     @Delete
-    suspend fun deleteExpense(expense: Expense)
+    fun deleteExpense(expense: Expense): Int
 
     // Invoices
     @Query("SELECT * FROM invoices ORDER BY date DESC")
     fun getAllInvoices(): Flow<List<Invoice>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertInvoice(invoice: Invoice): Long
+    fun insertInvoice(invoice: Invoice): Long
 
     @Query("SELECT * FROM invoice_items WHERE invoiceId = :invoiceId")
     fun getInvoiceItems(invoiceId: Int): Flow<List<InvoiceItem>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertInvoiceItem(item: InvoiceItem)
+    fun insertInvoiceItem(item: InvoiceItem): Long
     
     @Delete
-    suspend fun deleteInvoice(invoice: Invoice)
+    fun deleteInvoice(invoice: Invoice): Int
 
     // Settings
     @Query("SELECT * FROM settings WHERE id = 1")
     fun getSettings(): Flow<AppSettings?>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertSettings(settings: AppSettings)
+    fun insertSettings(settings: AppSettings): Long
 }
 
 @Database(
