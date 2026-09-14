@@ -15,55 +15,58 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.view.WindowCompat
 
-val EmeraldPrimary = Color(0xFF0F5132)
-val EmeraldMedium = Color(0xFF198754)
-val EmeraldLight = Color(0xFFE8F5E9)
-val EmeraldDark = Color(0xFF0A3622)
-val AccentTeal = Color(0xFF20C997)
+val IndigoPrimary = Color(0xFF3F51B5)
+val IndigoDark = Color(0xFF303F9F)
+val IndigoLight = Color(0xFFE8EAF6)
+val PinkAccent = Color(0xFFFF4081)
 
-val DebtRed = Color(0xFFDC3545)
-val DebtRedLight = Color(0xFFFDE8E8)
-val CreditGreen = Color(0xFF198754)
-val CreditGreenLight = Color(0xFFDEF7EC)
+val DebtRed = Color(0xFFD32F2F)
+val DebtRedLight = Color(0xFFFFEBEE)
+val CreditGreen = Color(0xFF388E3C)
+val CreditGreenLight = Color(0xFFE8F5E9)
 
-val BackgroundLight = Color(0xFFF4F6F8)
+val EmeraldPrimary = Color(0xFF10B981)
+val EmeraldMedium = Color(0xFF059669)
+val EmeraldLight = Color(0xFFD1FAE5)
+
+val BackgroundLight = Color(0xFFFFFFFF)
 val SurfaceLight = Color(0xFFFFFFFF)
-val SurfaceSubtle = Color(0xFFF8FAF9)
-val BorderSubtle = Color(0xFFE5E7EB)
+val SurfaceSubtle = Color(0xFFF5F5F5)
+val BorderSubtle = Color(0xFFE0E0E0)
 
 private val LightColorScheme = lightColorScheme(
-    primary = EmeraldPrimary,
+    primary = IndigoPrimary,
     onPrimary = Color.White,
-    primaryContainer = EmeraldLight,
-    onPrimaryContainer = EmeraldDark,
-    secondary = EmeraldMedium,
+    primaryContainer = IndigoLight,
+    onPrimaryContainer = IndigoDark,
+    secondary = PinkAccent,
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFE0F2FE),
-    onSecondaryContainer = Color(0xFF0369A1),
-    tertiary = AccentTeal,
+    secondaryContainer = Color(0xFFC5CAE9),
+    onSecondaryContainer = Color(0xFF1A237E),
+    tertiary = Color(0xFF1A237E),
     background = BackgroundLight,
     surface = SurfaceLight,
     surfaceVariant = SurfaceSubtle,
-    onBackground = Color(0xFF1E293B),
-    onSurface = Color(0xFF1E293B),
+    onBackground = Color(0xFF212121),
+    onSurface = Color(0xFF212121),
     error = DebtRed,
     errorContainer = DebtRedLight,
-    onErrorContainer = Color(0xFF991B1B)
+    onErrorContainer = Color(0xFFB71C1C)
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF20C997),
-    onPrimary = Color(0xFF0F5132),
-    primaryContainer = Color(0xFF0A3622),
-    onPrimaryContainer = Color(0xFFA7F3D0),
-    secondary = Color(0xFF34D399),
-    background = Color(0xFF0F172A),
-    surface = Color(0xFF1E293B),
-    surfaceVariant = Color(0xFF334155),
-    onBackground = Color(0xFFF8FAFC),
-    onSurface = Color(0xFFF8FAFC),
-    error = Color(0xFFF87171),
-    errorContainer = Color(0xFF7F1D1D)
+    primary = Color(0xFF9FA8DA),
+    onPrimary = Color(0xFF1A237E),
+    primaryContainer = Color(0xFF283593),
+    onPrimaryContainer = Color(0xFFC5CAE9),
+    secondary = Color(0xFFFF80AB),
+    background = Color(0xFF121212),
+    surface = Color(0xFF1E1E1E),
+    surfaceVariant = Color(0xFF2C2C2C),
+    onBackground = Color(0xFFE1E1E1),
+    onSurface = Color(0xFFE1E1E1),
+    error = Color(0xFFCF6679),
+    errorContainer = Color(0xFFB00020)
 )
 
 @Composable
