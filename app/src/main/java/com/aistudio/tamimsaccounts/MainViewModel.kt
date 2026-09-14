@@ -108,4 +108,9 @@ class MainViewModel(private val repository: AccountsRepository) : ViewModel() {
         val res = repository.restoreDatabaseFromJson(jsonString)
         onComplete(res)
     }
+
+    fun restoreFromUri(context: android.content.Context, uri: android.net.Uri, onComplete: (Result<String>) -> Unit) = viewModelScope.launch {
+        val res = repository.restoreFromUri(context, uri)
+        onComplete(res)
+    }
 }

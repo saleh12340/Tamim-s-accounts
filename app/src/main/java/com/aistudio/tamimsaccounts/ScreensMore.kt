@@ -941,27 +941,17 @@ fun SettingsScreen(viewModel: MainViewModel, navController: NavController) {
     var showPasteRestoreDialog by remember { mutableStateOf(false) }
     var restoreResultDialogMessage by remember { mutableStateOf<String?>(null) }
 
-    // File Picker for JSON backup file
+    // File Picker for DB / JSON backup file
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            try {
-                val inputStream = context.contentResolver.openInputStream(uri)
-                val jsonString = inputStream?.bufferedReader()?.use { it.readText() }
-                if (!jsonString.isNullOrBlank()) {
-                    viewModel.restoreBackup(jsonString) { result ->
-                        result.onSuccess { summary ->
-                            restoreResultDialogMessage = summary
-                        }.onFailure { err ->
-                            restoreResultDialogMessage = "حدث خطأ أثناء قراءة ملف النسخة الاحتياطية: ${err.localizedMessage}"
-                        }
-                    }
-                } else {
-                    Toast.makeText(context, "الملف فارغ أو غير صالح", Toast.LENGTH_LONG).show()
+            viewModel.restoreFromUri(context, uri) { result ->
+                result.onSuccess { summary ->
+                    restoreResultDialogMessage = summary
+                }.onFailure { err ->
+                    restoreResultDialogMessage = "حدث خطأ أثناء استعادة ملف قاعدة البيانات: ${err.localizedMessage}"
                 }
-            } catch (e: Exception) {
-                Toast.makeText(context, "فشل فتح الملف: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
     }

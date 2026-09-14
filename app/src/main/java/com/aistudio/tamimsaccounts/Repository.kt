@@ -1,8 +1,14 @@
 package com.aistudio.tamimsaccounts
 
+import android.content.Context
+import android.database.sqlite.SQLiteDatabase
+import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
 
 class AccountsRepository(private val dao: AccountsDao) {
     val customers: Flow<List<Customer>> = dao.getAllCustomers()
@@ -333,6 +339,158 @@ class AccountsRepository(private val dao: AccountsDao) {
             Result.success(summary)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    suspend fun restoreFromUri(context: Context, uri: Uri): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val contentResolver = context.contentResolver
+            val tempFile = File(context.cacheDir, "temp_import_${System.currentTimeMillis()}.db")
+
+            contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(tempFile).use { output ->
+                    input.copyTo(output)
+                }
+            } ?: return@withContext Result.failure(Exception("تعذر قراءة الملف المختار"))
+
+            // Check if file is SQLite format (starts with "SQLite format 3")
+            val isSqlite = try {
+                val header = ByteArray(16)
+                tempFile.inputStream().use { it.read(header) }
+                String(header).startsWith("SQLite format 3")
+            } catch (e: Exception) {
+                false
+            }
+
+            val result = if (isSqlite) {
+                restoreFromSqliteDatabase(tempFile)
+            } else {
+                val jsonString = tempFile.readText()
+                restoreDatabaseFromJson(jsonString)
+            }
+
+            tempFile.delete()
+            result
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun restoreFromSqliteDatabase(dbFile: File): Result<String> = withContext(Dispatchers.IO) {
+        var db: SQLiteDatabase? = null
+        try {
+            db = SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
+
+            // 1. Read Groups
+            val groupsMap = mutableMapOf<Int, String>()
+            try {
+                val cursor = db.rawQuery("SELECT ID, name FROM groups", null)
+                while (cursor.moveToNext()) {
+                    val gId = cursor.getInt(0)
+                    val gName = cursor.getString(1) ?: ""
+                    groupsMap[gId] = gName
+                }
+                cursor.close()
+            } catch (e: Exception) {
+                // Table might not exist
+            }
+
+            // 2. Read Currency
+            val currencyMap = mutableMapOf<Int, String>()
+            try {
+                val cursor = db.rawQuery("SELECT ID, name FROM currency", null)
+                while (cursor.moveToNext()) {
+                    val cId = cursor.getInt(0)
+                    val cName = cursor.getString(1) ?: ""
+                    currencyMap[cId] = cName
+                }
+                cursor.close()
+            } catch (e: Exception) {
+                // Table might not exist
+            }
+
+            // Clean existing transactions & customers
+            dao.deleteAllTransactions()
+            dao.deleteAllCustomers()
+
+            // 3. Read Customers
+            var custCount = 0
+            val oldToNewCustId = mutableMapOf<Int, Int>()
+            val custCursor = db.rawQuery("SELECT ID, name, gsm, g_id, param1 FROM customers", null)
+            while (custCursor.moveToNext()) {
+                val oldId = custCursor.getInt(0)
+                val name = custCursor.getString(1) ?: "عميل $oldId"
+                val phone = custCursor.getString(2) ?: ""
+                val gId = custCursor.getInt(3)
+                val param1 = custCursor.getString(4) ?: ""
+
+                val groupName = groupsMap[gId]
+                val noteWithGroup = if (!groupName.isNullOrBlank()) {
+                    if (param1.isNotBlank()) "$param1 ($groupName)" else groupName
+                } else param1
+
+                val newId = dao.insertCustomer(Customer(
+                    id = 0,
+                    name = name.trim(),
+                    phone = phone.trim(),
+                    balance = 0.0,
+                    notes = noteWithGroup
+                )).toInt()
+                oldToNewCustId[oldId] = newId
+                custCount++
+            }
+            custCursor.close()
+
+            // 4. Read Transactions & calculate balances
+            var txCount = 0
+            val txCursor = db.rawQuery("SELECT ID, cus_id, [in], out, date_, remarks, param2, curr_id FROM transactions", null)
+            val customerBalances = mutableMapOf<Int, Double>()
+
+            while (txCursor.moveToNext()) {
+                val oldCusId = txCursor.getString(1)?.toIntOrNull() ?: 0
+                val newCusId = oldToNewCustId[oldCusId] ?: oldCusId
+                val inVal = txCursor.getString(2) ?: "1"
+                val outVal = txCursor.getDouble(3)
+                val dateStr = txCursor.getString(4) ?: ""
+                val remarks = txCursor.getString(5) ?: ""
+                val timeStr = txCursor.getString(6) ?: ""
+                val currId = txCursor.getInt(7)
+                val currName = currencyMap[currId] ?: "ريال"
+
+                // In this database format:
+                // [in] == "1": DEBIT (عليه / أخذ بضاعة)
+                // [in] == "-1" or "0": CREDIT (له / سداد كاش)
+                val type = if (inVal == "-1" || inVal == "0") TransactionType.CREDIT else TransactionType.DEBIT
+                val fullDate = if (timeStr.isNotBlank()) "$dateStr $timeStr" else dateStr
+
+                if (outVal > 0 && newCusId > 0) {
+                    dao.insertTransaction(Tx(
+                        customerId = newCusId,
+                        type = type,
+                        amount = outVal,
+                        currency = currName,
+                        date = fullDate,
+                        note = remarks
+                    ))
+
+                    val currentBal = customerBalances[newCusId] ?: 0.0
+                    val diff = if (type == TransactionType.DEBIT) outVal else -outVal
+                    customerBalances[newCusId] = currentBal + diff
+                    txCount++
+                }
+            }
+            txCursor.close()
+
+            // 5. Update customer balances
+            customerBalances.forEach { (cId, bal) ->
+                dao.updateCustomerBalance(cId, bal)
+            }
+
+            Result.success("تمت استعادة قاعدة البيانات بنجاح!\nالعملاء: $custCount عميل\nالحركات: $txCount حركة ومستند")
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            db?.close()
         }
     }
 
