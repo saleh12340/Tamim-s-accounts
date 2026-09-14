@@ -19,98 +19,66 @@ class MainViewModel(private val repository: AccountsRepository) : ViewModel() {
     val settings = repository.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     fun saveCustomer(customer: Customer) = viewModelScope.launch { repository.saveCustomer(customer) }
-    fun deleteCustomer(customer: Customer) = viewModelScope.launch { repository.deleteCustomer(customer) }
+
+    fun deleteCustomer(customer: Customer) = viewModelScope.launch {
+        // Transactions currently have no FK cascade. Remove them explicitly first
+        // so deleting an account cannot leave orphaned ledger rows.
+        transactions.value.filter { it.customerId == customer.id }.forEach { repository.deleteTransaction(it) }
+        repository.deleteCustomer(customer)
+    }
 
     fun saveTransaction(tx: Tx, customer: Customer) = viewModelScope.launch {
         repository.saveTransaction(tx)
-        // Update customer balance: DEBIT = customer owes more (+), CREDIT = customer pays (-)
         val diff = if (tx.type == TransactionType.DEBIT) tx.amount else -tx.amount
-        val updatedBalance = customer.balance + diff
-        repository.saveCustomer(customer.copy(balance = updatedBalance))
+        repository.saveCustomer(customer.copy(balance = customer.balance + diff))
     }
-    
+
     fun deleteTransaction(tx: Tx, customer: Customer) = viewModelScope.launch {
         repository.deleteTransaction(tx)
-        // Revert balance
         val diff = if (tx.type == TransactionType.DEBIT) -tx.amount else tx.amount
-        val updatedBalance = customer.balance + diff
-        repository.saveCustomer(customer.copy(balance = updatedBalance))
+        repository.saveCustomer(customer.copy(balance = customer.balance + diff))
     }
 
     fun saveProduct(product: Product) = viewModelScope.launch { repository.saveProduct(product) }
     fun deleteProduct(product: Product) = viewModelScope.launch { repository.deleteProduct(product) }
 
     fun adjustProductStock(product: Product, delta: Int) = viewModelScope.launch {
-        val newStock = (product.stock + delta).coerceAtLeast(0)
-        repository.saveProduct(product.copy(stock = newStock))
+        repository.saveProduct(product.copy(stock = (product.stock + delta).coerceAtLeast(0)))
     }
 
     fun saveExpense(expense: Expense) = viewModelScope.launch { repository.saveExpense(expense) }
     fun deleteExpense(expense: Expense) = viewModelScope.launch { repository.deleteExpense(expense) }
 
-    fun saveInvoiceWithItems(
-        invoice: Invoice, 
-        items: List<InvoiceItem>,
-        updateStockAndCustomer: Boolean = true
-    ) = viewModelScope.launch {
+    fun saveInvoiceWithItems(invoice: Invoice, items: List<InvoiceItem>, updateStockAndCustomer: Boolean = true) = viewModelScope.launch {
         repository.saveInvoiceWithItems(invoice, items)
-        
         if (updateStockAndCustomer) {
-            // Deduct stock if sale, or increase if purchase
             val currentProducts = products.value
             items.forEach { item ->
-                val matchingProduct = currentProducts.find { it.name.trim().equals(item.itemName.trim(), ignoreCase = true) }
-                if (matchingProduct != null) {
+                currentProducts.find { it.name.trim().equals(item.itemName.trim(), ignoreCase = true) }?.let { product ->
                     val delta = if (invoice.type == InvoiceType.SALE) -item.quantity else item.quantity
-                    val updatedStock = (matchingProduct.stock + delta).coerceAtLeast(0)
-                    repository.saveProduct(matchingProduct.copy(stock = updatedStock))
+                    repository.saveProduct(product.copy(stock = (product.stock + delta).coerceAtLeast(0)))
                 }
             }
-            
-            // If sale invoice is tied to customer and has unpaid balance, add DEBIT transaction
             if (invoice.type == InvoiceType.SALE && invoice.customerId != null) {
                 val customer = customers.value.find { it.id == invoice.customerId }
-                val remainingUnpaid = invoice.total - invoice.paid
-                if (customer != null && remainingUnpaid > 0) {
-                    val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
-                    val dateStr = sdf.format(Date())
-                    val tx = Tx(
-                        customerId = customer.id,
-                        type = TransactionType.DEBIT,
-                        amount = remainingUnpaid,
-                        currency = "ريال",
-                        date = dateStr,
-                        note = "متبقي فاتورة بيع #${invoice.id}"
-                    )
-                    saveTransaction(tx, customer)
+                val remaining = invoice.total - invoice.paid
+                if (customer != null && remaining > 0) {
+                    val date = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date())
+                    saveTransaction(Tx(customer.id, TransactionType.DEBIT, remaining, "ريال", date, "متبقي فاتورة بيع"), customer)
                 }
             }
         }
     }
-    
+
     fun deleteInvoice(invoice: Invoice) = viewModelScope.launch { repository.deleteInvoice(invoice) }
     fun getInvoiceItems(invoiceId: Int) = repository.getInvoiceItems(invoiceId)
-
     fun saveSupplier(supplier: Supplier) = viewModelScope.launch { repository.saveSupplier(supplier) }
     fun deleteSupplier(supplier: Supplier) = viewModelScope.launch { repository.deleteSupplier(supplier) }
-
     fun saveSettings(s: AppSettings) = viewModelScope.launch { repository.saveSettings(s) }
-    
     fun loadSampleData() = viewModelScope.launch { repository.loadSampleData() }
     fun clearAllData() = viewModelScope.launch { repository.clearAllData() }
 
-    fun exportBackup(onResult: (String) -> Unit) = viewModelScope.launch {
-        val json = repository.exportDatabaseJson()
-        onResult(json)
-    }
-
-    fun restoreBackup(jsonString: String, onComplete: (Result<String>) -> Unit) = viewModelScope.launch {
-        val res = repository.restoreDatabaseFromJson(jsonString)
-        onComplete(res)
-    }
-
-    fun restoreFromUri(context: android.content.Context, uri: android.net.Uri, onComplete: (Result<String>) -> Unit) = viewModelScope.launch {
-        val res = repository.restoreFromUri(context, uri)
-        onComplete(res)
-    }
+    fun exportBackup(onResult: (String) -> Unit) = viewModelScope.launch { onResult(repository.exportDatabaseJson()) }
+    fun restoreBackup(jsonString: String, onComplete: (Result<String>) -> Unit) = viewModelScope.launch { onComplete(repository.restoreDatabaseFromJson(jsonString)) }
+    fun restoreFromUri(context: android.content.Context, uri: android.net.Uri, onComplete: (Result<String>) -> Unit) = viewModelScope.launch { onComplete(repository.restoreFromUri(context, uri)) }
 }
