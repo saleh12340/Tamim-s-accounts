@@ -1,25 +1,16 @@
-# بقالة العزي - دفتر الحسابات والمخزون (Tamim's Accounts)
+# بقالة العزي - دفتر الحسابات (Android Rewrite)
 
-تطبيق ويب حديث وسريع لإدارة حسابات وديون العملاء، فواتير المبيعات والمشتريات، حركة المخزون، والمصروفات النثرية لبقالة العزي.
+This is a complete Android port of the "Tamim's accounts" grocery ledger application, originally built in React. The core features and business logic have been preserved and translated into a modern native Android application.
 
-## المميزات الرئيسية
-- **إدارة حسابات العملاء**: تسجيل العملاء، كشف حساب تفصيلي، العمليات (له / عليه)، وحساب الرصيد الجاري تلقائياً.
-- **الفواتير**: فواتير بيع وفواتير شراء مع تسجيل المدفوع والمتبقي وتحديث الحسابات.
-- **المخزون والأصناف**: متابعة كميات المخزون، أسعار التكلفة والبيع، وتنبيهات نواقص المخزون (حد الأمان).
-- **المصروفات النثرية**: تتبع نفقات المتجر ومصاريف التشغيل مع تقارير شهرية وتراكمية.
-- **التقارير المالية**: ملخص العمليات، صافي الديون، وتقييم إجمالي المخزون.
-- **توافقية كاملة مع SQLite**:
-  - تصدير واستيراد قواعد بيانات SQLite (.db) المتوافقة مع التطبيق الأصلي للأندرويد.
-  - دعم تسوية وتطبيع هيكل الجداول (Schema Normalization).
-  - فحص سلامة قاعدة البيانات (PRAGMA integrity_check).
-  - نسخ احتياطي بتنسيق JSON واستعادته بسهولة.
-- **الطباعة والمشاركة**:
-  - طباعة كشف حساب وإيصالات فواتير متوافقة مع الطابعات الحرارية (58mm و 80mm).
-  - مشاركة كشف الحساب نصياً عبر تطبيقات المراسلة أو الحافظة.
-  - دعم الاقتران بالطابعات عبر Web Bluetooth.
+## Tech Stack
+- **Framework**: Android (Kotlin + Jetpack Compose)
+- **Database**: Room Persistence Library (SQLite)
+- **Architecture**: MVVM with Coroutines & Flow
+- **UI Design**: Material Design 3 with custom Adaptive Launcher Icon
 
-## التقنيات المستخدمة
-- React 19 + TypeScript + Vite
-- Tailwind CSS (RTL support)
-- Lucide Icons
-- sql.js (WebAssembly SQLite Engine)
+## Features
+- **Dashboard**: Real-time overview of total debt owed to the store and recent transactions.
+- **Accounts**: Complete ledger system to track customer balances, with detailed transaction histories.
+- **Transactions**: Add credit and debit operations directly to a customer's ledger, auto-updating their balance.
+- **Inventory**: Product management with basic stock and pricing information.
+- **Localization**: Full RTL Arabic support.
