@@ -21,8 +21,6 @@ class MainViewModel(private val repository: AccountsRepository) : ViewModel() {
     fun saveCustomer(customer: Customer) = viewModelScope.launch { repository.saveCustomer(customer) }
 
     fun deleteCustomer(customer: Customer) = viewModelScope.launch {
-        // Transactions currently have no FK cascade. Remove them explicitly first
-        // so deleting an account cannot leave orphaned ledger rows.
         transactions.value.filter { it.customerId == customer.id }.forEach { repository.deleteTransaction(it) }
         repository.deleteCustomer(customer)
     }
@@ -64,7 +62,17 @@ class MainViewModel(private val repository: AccountsRepository) : ViewModel() {
                 val remaining = invoice.total - invoice.paid
                 if (customer != null && remaining > 0) {
                     val date = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date())
-                    saveTransaction(Tx(customer.id, TransactionType.DEBIT, remaining, "ريال", date, "متبقي فاتورة بيع"), customer)
+                    saveTransaction(
+                        Tx(
+                            customerId = customer.id,
+                            type = TransactionType.DEBIT,
+                            amount = remaining,
+                            currency = "ريال",
+                            date = date,
+                            note = "متبقي فاتورة بيع"
+                        ),
+                        customer
+                    )
                 }
             }
         }
