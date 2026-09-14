@@ -91,8 +91,9 @@ data class Supplier(
 @Entity(tableName = "settings")
 data class AppSettings(
     @PrimaryKey val id: Int = 1,
-    val storeName: String,
-    val phone: String
+    val storeName: String = "بقالة العزي",
+    val phone: String = "777000000",
+    val currency: String = "ريال"
 )
 
 @Dao
@@ -113,6 +114,9 @@ interface AccountsDao {
     @Query("UPDATE customers SET balance = :newBalance WHERE id = :customerId")
     fun updateCustomerBalance(customerId: Int, newBalance: Double): Int
 
+    @Query("DELETE FROM customers")
+    fun deleteAllCustomers(): Int
+
     // Transactions
     @Query("SELECT * FROM transactions ORDER BY date DESC")
     fun getAllTransactions(): Flow<List<Tx>>
@@ -125,6 +129,9 @@ interface AccountsDao {
 
     @Delete
     fun deleteTransaction(tx: Tx): Int
+
+    @Query("DELETE FROM transactions")
+    fun deleteAllTransactions(): Int
 
     // Products
     @Query("SELECT * FROM products ORDER BY name ASC")
@@ -139,6 +146,9 @@ interface AccountsDao {
     @Delete
     fun deleteProduct(product: Product): Int
 
+    @Query("DELETE FROM products")
+    fun deleteAllProducts(): Int
+
     // Expenses
     @Query("SELECT * FROM expenses ORDER BY date DESC")
     fun getAllExpenses(): Flow<List<Expense>>
@@ -148,6 +158,9 @@ interface AccountsDao {
     
     @Delete
     fun deleteExpense(expense: Expense): Int
+
+    @Query("DELETE FROM expenses")
+    fun deleteAllExpenses(): Int
 
     // Invoices
     @Query("SELECT * FROM invoices ORDER BY date DESC")
@@ -164,6 +177,25 @@ interface AccountsDao {
     
     @Delete
     fun deleteInvoice(invoice: Invoice): Int
+
+    @Query("DELETE FROM invoices")
+    fun deleteAllInvoices(): Int
+
+    @Query("DELETE FROM invoice_items")
+    fun deleteAllInvoiceItems(): Int
+
+    // Suppliers
+    @Query("SELECT * FROM suppliers ORDER BY name ASC")
+    fun getAllSuppliers(): Flow<List<Supplier>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertSupplier(supplier: Supplier): Long
+
+    @Update
+    fun updateSupplier(supplier: Supplier): Int
+
+    @Delete
+    fun deleteSupplier(supplier: Supplier): Int
 
     // Settings
     @Query("SELECT * FROM settings WHERE id = 1")

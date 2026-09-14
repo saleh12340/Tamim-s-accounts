@@ -75,7 +75,7 @@ fun AppNavigation(viewModel: MainViewModel) {
         ) {
             composable(Screen.Dashboard.route) { DashboardScreen(viewModel, navController) }
             composable(Screen.Accounts.route) { AccountsScreen(viewModel, navController) }
-            composable(Screen.Products.route) { ProductsScreen(viewModel) }
+            composable(Screen.Products.route) { ProductsScreen(viewModel, navController) }
             composable(Screen.More.route) { MoreScreen(viewModel, navController) }
             composable("customer_ledger/{customerId}") { backStackEntry ->
                 val customerId = backStackEntry.arguments?.getString("customerId")?.toIntOrNull()
@@ -83,6 +83,10 @@ fun AppNavigation(viewModel: MainViewModel) {
                     CustomerLedgerScreen(customerId, viewModel, navController)
                 }
             }
+            composable("expenses") { ExpensesScreen(viewModel, navController) }
+            composable("invoices") { InvoicesScreen(viewModel, navController) }
+            composable("settings") { SettingsScreen(viewModel, navController) }
+            composable("reports") { ReportsScreen(viewModel, navController) }
         }
     }
 }

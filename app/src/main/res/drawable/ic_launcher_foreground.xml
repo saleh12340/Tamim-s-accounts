@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
-        android:width="108dp"
-        android:height="108dp"
-        android:drawable="@drawable/ledger_icon_1789400369569"
+        android:width="66dp"
+        android:height="66dp"
+        android:drawable="@drawable/grocery_ledger_icon_1789405023829"
         android:gravity="center" />
 </layer-list>
+
