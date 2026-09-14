@@ -98,4 +98,14 @@ class MainViewModel(private val repository: AccountsRepository) : ViewModel() {
     
     fun loadSampleData() = viewModelScope.launch { repository.loadSampleData() }
     fun clearAllData() = viewModelScope.launch { repository.clearAllData() }
+
+    fun exportBackup(onResult: (String) -> Unit) = viewModelScope.launch {
+        val json = repository.exportDatabaseJson()
+        onResult(json)
+    }
+
+    fun restoreBackup(jsonString: String, onComplete: (Result<String>) -> Unit) = viewModelScope.launch {
+        val res = repository.restoreDatabaseFromJson(jsonString)
+        onComplete(res)
+    }
 }

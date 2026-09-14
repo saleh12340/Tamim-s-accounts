@@ -102,6 +102,9 @@ interface AccountsDao {
     @Query("SELECT * FROM customers ORDER BY name ASC")
     fun getAllCustomers(): Flow<List<Customer>>
 
+    @Query("SELECT * FROM customers")
+    fun getAllCustomersList(): List<Customer>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertCustomer(customer: Customer): Long
 
@@ -121,6 +124,9 @@ interface AccountsDao {
     @Query("SELECT * FROM transactions ORDER BY date DESC")
     fun getAllTransactions(): Flow<List<Tx>>
 
+    @Query("SELECT * FROM transactions")
+    fun getAllTransactionsList(): List<Tx>
+
     @Query("SELECT * FROM transactions WHERE customerId = :customerId ORDER BY date DESC")
     fun getTransactionsForCustomer(customerId: Int): Flow<List<Tx>>
 
@@ -136,6 +142,9 @@ interface AccountsDao {
     // Products
     @Query("SELECT * FROM products ORDER BY name ASC")
     fun getAllProducts(): Flow<List<Product>>
+
+    @Query("SELECT * FROM products")
+    fun getAllProductsList(): List<Product>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertProduct(product: Product): Long
@@ -153,6 +162,9 @@ interface AccountsDao {
     @Query("SELECT * FROM expenses ORDER BY date DESC")
     fun getAllExpenses(): Flow<List<Expense>>
 
+    @Query("SELECT * FROM expenses")
+    fun getAllExpensesList(): List<Expense>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertExpense(expense: Expense): Long
     
@@ -166,11 +178,17 @@ interface AccountsDao {
     @Query("SELECT * FROM invoices ORDER BY date DESC")
     fun getAllInvoices(): Flow<List<Invoice>>
 
+    @Query("SELECT * FROM invoices")
+    fun getAllInvoicesList(): List<Invoice>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertInvoice(invoice: Invoice): Long
 
     @Query("SELECT * FROM invoice_items WHERE invoiceId = :invoiceId")
     fun getInvoiceItems(invoiceId: Int): Flow<List<InvoiceItem>>
+
+    @Query("SELECT * FROM invoice_items")
+    fun getAllInvoiceItemsList(): List<InvoiceItem>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertInvoiceItem(item: InvoiceItem): Long

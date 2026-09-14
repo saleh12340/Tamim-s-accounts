@@ -1,6 +1,9 @@
 package com.aistudio.tamimsaccounts
 
 import android.content.Intent
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -935,7 +938,33 @@ fun SettingsScreen(viewModel: MainViewModel, navController: NavController) {
     var currency by remember { mutableStateOf(settings?.currency ?: "ريال") }
 
     var showClearConfirm by remember { mutableStateOf(false) }
-    var showSampleLoadedSnackbar by remember { mutableStateOf(false) }
+    var showPasteRestoreDialog by remember { mutableStateOf(false) }
+    var restoreResultDialogMessage by remember { mutableStateOf<String?>(null) }
+
+    // File Picker for JSON backup file
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val jsonString = inputStream?.bufferedReader()?.use { it.readText() }
+                if (!jsonString.isNullOrBlank()) {
+                    viewModel.restoreBackup(jsonString) { result ->
+                        result.onSuccess { summary ->
+                            restoreResultDialogMessage = summary
+                        }.onFailure { err ->
+                            restoreResultDialogMessage = "حدث خطأ أثناء قراءة ملف النسخة الاحتياطية: ${err.localizedMessage}"
+                        }
+                    }
+                } else {
+                    Toast.makeText(context, "الملف فارغ أو غير صالح", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "فشل فتح الملف: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     LaunchedEffect(settings) {
         settings?.let {
@@ -948,7 +977,7 @@ fun SettingsScreen(viewModel: MainViewModel, navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("إعدادات المحل والتطبيق", fontWeight = FontWeight.Bold) },
+                title = { Text("إعدادات المحل وقاعدة البيانات", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "عودة")
@@ -970,6 +999,7 @@ fun SettingsScreen(viewModel: MainViewModel, navController: NavController) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // Store details
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -1021,10 +1051,82 @@ fun SettingsScreen(viewModel: MainViewModel, navController: NavController) {
                                         currency = currency.trim()
                                     )
                                 )
+                                Toast.makeText(context, "تم حفظ بيانات المتجر بنجاح", Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("حفظ بيانات المتجر")
+                        }
+                    }
+                }
+            }
+
+            // Backup & Restore Section (النسخ الاحتياطي واستعادة قاعدة البيانات)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Backup, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("النسخ الاحتياطي واستعادة البيانات", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        }
+
+                        Text(
+                            "يمكنك استعادة قاعدة البيانات المحفوظة من الموقع أو من ملف JSON، أو تصدير نسخة احتياطية جديدة لحفظها على هاتفك أو مشاركتها عبر الواتساب.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.DarkGray
+                        )
+
+                        HorizontalDivider(color = Color(0xFFF1F5F9))
+
+                        // Restore from File Button
+                        Button(
+                            onClick = { filePickerLauncher.launch("*/*") },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(Icons.Default.FolderOpen, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("استعادة قاعدة البيانات من ملف (JSON / ملف النسخ)")
+                        }
+
+                        // Restore by Pasting JSON Button
+                        OutlinedButton(
+                            onClick = { showPasteRestoreDialog = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.ContentPaste, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("استعادة عبر لصق نص النسخة الاحتياطية")
+                        }
+
+                        // Export & Share Backup Button
+                        FilledTonalButton(
+                            onClick = {
+                                viewModel.exportBackup { jsonStr ->
+                                    val sendIntent = Intent().apply {
+                                        action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_TEXT, jsonStr)
+                                        putExtra(Intent.EXTRA_TITLE, "نسخة احتياطية - بقالة العزي")
+                                        type = "text/plain"
+                                    }
+                                    val shareIntent = Intent.createChooser(sendIntent, "مشاركة النسخة الاحتياطية لقاعدة البيانات")
+                                    context.startActivity(shareIntent)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("تصدير ومشاركة نسخة احتياطية (JSON)")
                         }
                     }
                 }
@@ -1042,19 +1144,19 @@ fun SettingsScreen(viewModel: MainViewModel, navController: NavController) {
                         modifier = Modifier.padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text("أدوات البيانات والتجربة", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        Text("أدوات التجربة وإعادة التعيين", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
 
                         // Sample Data Button
                         FilledTonalButton(
                             onClick = {
                                 viewModel.loadSampleData()
-                                showSampleLoadedSnackbar = true
+                                Toast.makeText(context, "تم تحميل البيانات التجريبية بنجاح", Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Icon(Icons.Default.DownloadForOffline, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("تحميل بيانات تجريبية جاهزة (أصناف + عملاء + فواتير)")
+                            Text("تحميل بيانات تجريبية جاهزة للتجربة")
                         }
 
                         // Clear Data Button
@@ -1085,10 +1187,42 @@ fun SettingsScreen(viewModel: MainViewModel, navController: NavController) {
                     ) {
                         Text("بقالة العزي - دفتر الحسابات الذكي", fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("الإصدار 1.0 • يعمل محلياً بدون إنترنت (Offline)", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text("الإصدار 1.0 • متوافق مع نسخ واستعادة بيانات الموقع (Offline / Room Database)", style = MaterialTheme.typography.bodySmall, color = Color.Gray, textAlign = TextAlign.Center)
                     }
                 }
             }
+        }
+
+        // Paste Restore Dialog
+        if (showPasteRestoreDialog) {
+            PasteBackupRestoreDialog(
+                onDismiss = { showPasteRestoreDialog = false },
+                onRestore = { text ->
+                    viewModel.restoreBackup(text) { result ->
+                        showPasteRestoreDialog = false
+                        result.onSuccess { summary ->
+                            restoreResultDialogMessage = summary
+                        }.onFailure { err ->
+                            restoreResultDialogMessage = "فشلت الاستعادة: ${err.localizedMessage}"
+                        }
+                    }
+                }
+            )
+        }
+
+        // Result Dialog
+        if (restoreResultDialogMessage != null) {
+            AlertDialog(
+                onDismissRequest = { restoreResultDialogMessage = null },
+                icon = { Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                title = { Text("نتيجة استعادة البيانات", fontWeight = FontWeight.Bold) },
+                text = { Text(restoreResultDialogMessage ?: "") },
+                confirmButton = {
+                    Button(onClick = { restoreResultDialogMessage = null }) {
+                        Text("حسناً")
+                    }
+                }
+            )
         }
 
         if (showClearConfirm) {
@@ -1098,9 +1232,65 @@ fun SettingsScreen(viewModel: MainViewModel, navController: NavController) {
                 onConfirm = {
                     viewModel.clearAllData()
                     showClearConfirm = false
+                    Toast.makeText(context, "تم مسح البيانات بنجاح", Toast.LENGTH_SHORT).show()
                 },
                 onDismiss = { showClearConfirm = false }
             )
         }
     }
+}
+
+@Composable
+fun PasteBackupRestoreDialog(
+    onDismiss: () -> Unit,
+    onRestore: (String) -> Unit
+) {
+    var jsonInput by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.ContentPaste, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("لصق نص النسخة الاحتياطية", fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "قم بلصق نص الـ JSON الخاص بالنسخة الاحتياطية التي تم تصديرها من الموقع أو التطبيق:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.DarkGray
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = jsonInput,
+                    onValueChange = { jsonInput = it },
+                    placeholder = { Text("{\"customers\": [...], ...}") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp),
+                    maxLines = 10
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (jsonInput.isNotBlank()) {
+                        onRestore(jsonInput.trim())
+                    }
+                },
+                enabled = jsonInput.isNotBlank()
+            ) {
+                Text("استعادة البيانات الآن")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("إلغاء")
+            }
+        }
+    )
 }
