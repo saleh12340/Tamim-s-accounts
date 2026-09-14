@@ -51,6 +51,7 @@ export interface Invoice {
   total: number;
   paid: number;
   note: string;
+  items?: InvoiceItem[];
 }
 
 export interface InvoiceItem {

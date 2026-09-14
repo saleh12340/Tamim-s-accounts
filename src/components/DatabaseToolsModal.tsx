@@ -152,6 +152,53 @@ export const DatabaseToolsModal: React.FC<DatabaseToolsModalProps> = ({
           </div>
         )}
 
+        {/* Section 0: Imported Market Database (from saleh12340/Database-only) */}
+        <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-xs text-[#0D4D3A] flex items-center gap-1.5">
+              <Database className="w-4 h-4 text-[#146B50]" />
+              قاعدة بيانات البقالة المستوردة (saleh12340/Database-only)
+            </span>
+            <span className="text-[10px] bg-emerald-100 text-[#146B50] font-bold px-2 py-0.5 rounded-md">
+              279 عميل • 15,902 عملية
+            </span>
+          </div>
+          <p className="text-[11px] text-emerald-800">
+            تم جلب وتضمين قاعدة بيانات البقالة الرسمية من المستودع. يمكنك تفعيلها فوراً واستعراض كافة حسابات العملاء والديون والعمليات.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+            <button
+              id="btn-load-market-db"
+              disabled={loading}
+              onClick={async () => {
+                setLoading(true);
+                setStatusMessage({ text: 'جارٍ استيراد بيانات البقالة الرسمية...', type: 'info' });
+                const res = await db.loadMarketDatabase();
+                if (res.ok) {
+                  setStatusMessage({ text: res.message, type: 'success' });
+                  onDataChanged();
+                } else {
+                  setStatusMessage({ text: res.message, type: 'error' });
+                }
+                setLoading(false);
+              }}
+              className="flex items-center justify-center gap-1.5 bg-[#146B50] hover:bg-[#0D4D3A] text-white py-2.5 px-3 rounded-xl text-xs font-bold transition-all shadow-xs disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>تطبيق بيانات البقالة الآن</span>
+            </button>
+
+            <a
+              href="/market.db"
+              download="20260913165909-market.db"
+              className="flex items-center justify-center gap-1.5 bg-white border border-emerald-300 hover:bg-emerald-50 text-emerald-900 py-2.5 px-3 rounded-xl text-xs font-bold transition-all shadow-2xs text-center"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>تنزيل ملف SQLite الأصلي (.db)</span>
+            </a>
+          </div>
+        </div>
+
         {/* Section 1: Backup & Export */}
         <div className="bg-[#F7F9F8] border border-[#E1E8E4] rounded-2xl p-4 space-y-2.5">
           <div className="font-bold text-xs text-gray-700">

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Expense } from '../types';
-import { formatMoney } from '../utils/formatters';
+import { formatMoney, compareTxNewestFirst } from '../utils/formatters';
 import { Wallet, Plus, Trash2, Calendar } from 'lucide-react';
 
 interface ExpensesViewProps {
@@ -56,7 +56,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
         </div>
       ) : (
         <div className="space-y-2">
-          {expenses.map(expense => (
+          {[...expenses].sort(compareTxNewestFirst).map(expense => (
             <div
               key={expense.id}
               id={`expense-card-${expense.id}`}

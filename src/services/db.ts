@@ -1,5 +1,6 @@
-import { Customer, Tx, Product, Expense, Invoice, AppSettings, DatabaseState, IntegrityReport } from '../types';
+import { Customer, Tx, Product, Expense, Invoice, InvoiceItem, AppSettings, DatabaseState, IntegrityReport } from '../types';
 import initSqlJs, { Database as SqlJsDatabase } from 'sql.js';
+import { compareTxNewestFirst, parseDateToTimestamp } from '../utils/formatters';
 
 const STORAGE_KEY = 'tamim_accounts_db_v1';
 
@@ -131,8 +132,38 @@ class DatabaseService {
   }
 
   // --- Customers ---
-  public getCustomers(): Customer[] {
-    return [...this.state.customers].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+  public getCustomerLastActivityMap(): Map<number, number> {
+    const map = new Map<number, number>();
+    for (const t of this.state.transactions) {
+      const ts = parseDateToTimestamp(t.date);
+      const prev = map.get(t.customerId) || 0;
+      if (ts > prev) {
+        map.set(t.customerId, ts);
+      }
+    }
+    return map;
+  }
+
+  public getCustomers(sortBy: 'newest' | 'id_desc' | 'name' | 'balance' = 'newest'): Customer[] {
+    const lastMap = this.getCustomerLastActivityMap();
+    return [...this.state.customers].sort((a, b) => {
+      if (sortBy === 'name') {
+        return a.name.localeCompare(b.name, 'ar');
+      }
+      if (sortBy === 'id_desc') {
+        return b.id - a.id;
+      }
+      if (sortBy === 'balance') {
+        return Math.abs(b.balance) - Math.abs(a.balance);
+      }
+      // 'newest' (الأحدث أولاً): الترتيب حسب أحدث حركة تاريخياً، وإذا تساويا فحسب أحدث إضافة (ID تنازلياً)
+      const timeA = lastMap.get(a.id) || 0;
+      const timeB = lastMap.get(b.id) || 0;
+      if (timeB !== timeA) {
+        return timeB - timeA;
+      }
+      return b.id - a.id;
+    });
   }
 
   public getCustomer(id: number): Customer | undefined {
@@ -175,9 +206,9 @@ class DatabaseService {
     if (customerId != null) {
       return this.state.transactions
         .filter(t => t.customerId === customerId)
-        .sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+        .sort(compareTxNewestFirst);
     }
-    return [...this.state.transactions].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+    return [...this.state.transactions].sort(compareTxNewestFirst);
   }
 
   public addTransaction(
@@ -311,7 +342,7 @@ class DatabaseService {
 
   // --- Expenses ---
   public getExpenses(): Expense[] {
-    return [...this.state.expenses].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+    return [...this.state.expenses].sort(compareTxNewestFirst);
   }
 
   public addExpense(
@@ -345,7 +376,7 @@ class DatabaseService {
 
   // --- Invoices ---
   public getInvoices(): Invoice[] {
-    return [...this.state.invoices].sort((a, b) => b.id - a.id);
+    return [...this.state.invoices].sort(compareTxNewestFirst);
   }
 
   public addInvoice(
@@ -354,10 +385,20 @@ class DatabaseService {
     paid: number,
     note: string = '',
     customerId?: number | null,
-    customerOrSupplierName?: string
+    customerOrSupplierName?: string,
+    items?: InvoiceItem[],
+    recordInCustomerLedger: boolean = true
   ): number {
     if (total <= 0) throw new Error('إجمالي الفاتورة يجب أن يكون أكبر من الصفر');
     const id = this.state.invoices.length > 0 ? Math.max(...this.state.invoices.map(i => i.id)) + 1 : 1;
+    
+    // Assign invoice items if provided
+    const assignedItems: InvoiceItem[] = (items || []).map((itm, idx) => ({
+      ...itm,
+      id: itm.id || Date.now() + idx,
+      invoiceId: id,
+    }));
+
     const newInvoice: Invoice = {
       id,
       type,
@@ -367,10 +408,73 @@ class DatabaseService {
       total,
       paid,
       note: note.trim(),
+      items: assignedItems,
     };
     this.state.invoices.push(newInvoice);
+
+    if (assignedItems.length > 0) {
+      if (!this.state.invoiceItems) this.state.invoiceItems = [];
+      this.state.invoiceItems.push(...assignedItems);
+    }
+
+    // Automatically record remaining debt in customer ledger if customer is selected
+    if (recordInCustomerLedger && customerId && type === 'SALE') {
+      const remainingDebt = total - paid;
+      if (remainingDebt > 0) {
+        const itemSummary = assignedItems.length > 0
+          ? assignedItems.map(it => `${it.itemName} (${it.quantity}×${it.unitPrice})`).join('، ')
+          : note.trim();
+        const txNote = `فاتورة مبيعات #${id}: ${itemSummary || 'مشتريات بقالة'}${paid > 0 ? ` (مدفوع: ${paid})` : ''}`;
+        this.addTransaction(customerId, 'DEBIT', remainingDebt, txNote, 'YER');
+      }
+    }
+
     this.saveState();
     return id;
+  }
+
+  public updateInvoice(
+    id: number,
+    type: 'SALE' | 'PURCHASE',
+    total: number,
+    paid: number,
+    note: string = '',
+    customerId?: number | null,
+    customerOrSupplierName?: string,
+    items?: InvoiceItem[],
+    recordInCustomerLedger: boolean = false
+  ) {
+    if (total <= 0) throw new Error('إجمالي الفاتورة يجب أن يكون أكبر من الصفر');
+    const existing = this.state.invoices.find(i => i.id === id);
+    if (!existing) return;
+
+    const assignedItems: InvoiceItem[] = (items || []).map((itm, idx) => ({
+      ...itm,
+      id: itm.id || Date.now() + idx,
+      invoiceId: id,
+    }));
+
+    this.state.invoices = this.state.invoices.map(i =>
+      i.id === id
+        ? {
+            ...i,
+            type,
+            total,
+            paid,
+            note: note.trim(),
+            customerId: customerId ?? null,
+            customerOrSupplierName: customerOrSupplierName || (customerId ? this.getCustomer(customerId)?.name : ''),
+            items: assignedItems,
+          }
+        : i
+    );
+
+    if (this.state.invoiceItems) {
+      this.state.invoiceItems = this.state.invoiceItems.filter(it => it.invoiceId !== id);
+      this.state.invoiceItems.push(...assignedItems);
+    }
+
+    this.saveState();
   }
 
   public deleteInvoice(id: number) {
@@ -389,11 +493,46 @@ class DatabaseService {
   }
 
   // --- SQLite & Import / Export / Normalizer ---
+  private async fetchValidWasmBinary(): Promise<ArrayBuffer> {
+    const sources = [
+      '/sql-wasm.wasm',
+      'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.wasm',
+      'https://cdn.jsdelivr.net/npm/sql.js@1.12.0/dist/sql-wasm.wasm',
+      'https://unpkg.com/sql.js@1.12.0/dist/sql-wasm.wasm',
+    ];
+
+    for (const src of sources) {
+      try {
+        const res = await fetch(src);
+        if (!res.ok) continue;
+        const buf = await res.arrayBuffer();
+        if (buf.byteLength >= 4) {
+          const header = new Uint8Array(buf, 0, 4);
+          // Verify WebAssembly magic number: \0asm (0x00, 0x61, 0x73, 0x6d)
+          if (header[0] === 0x00 && header[1] === 0x61 && header[2] === 0x73 && header[3] === 0x6d) {
+            return buf;
+          }
+        }
+      } catch {
+        // try next source
+      }
+    }
+    throw new Error('تعذر تحميل محرك SQLite WebAssembly بنجاح');
+  }
+
   private async getSqlJs() {
     if (!this.sqlPromise) {
-      this.sqlPromise = initSqlJs({
-        locateFile: file => `https://sql.js.org/dist/${file}`,
-      });
+      this.sqlPromise = (async () => {
+        try {
+          const wasmBinary = await this.fetchValidWasmBinary();
+          return await initSqlJs({ wasmBinary });
+        } catch {
+          // Final fallback to cdnjs locateFile
+          return await initSqlJs({
+            locateFile: () => 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.wasm',
+          });
+        }
+      })();
     }
     return this.sqlPromise;
   }
@@ -650,9 +789,10 @@ class DatabaseService {
         const cols = getColumns(custTable);
         const idCol = findCol(cols, 'id', 'customer_id', 'client_id', 'رقم');
         const nameCol = findCol(cols, 'name', 'customer_name', 'client_name', 'اسم', 'اسم العميل', 'العميل');
-        const phoneCol = findCol(cols, 'phone', 'mobile', 'هاتف', 'الجوال');
+        const phoneCol = findCol(cols, 'phone', 'gsm', 'mobile', 'هاتف', 'الجوال');
         const balanceCol = findCol(cols, 'balance', 'رصيد', 'الرصيد');
-        const notesCol = findCol(cols, 'notes', 'note', 'ملاحظات');
+        const notesCol = findCol(cols, 'notes', 'param1', 'note', 'ملاحظات');
+        const groupCol = findCol(cols, 'g_id', 'group_id', 'group');
 
         const query = `SELECT * FROM "${custTable}"`;
         const res = db.exec(query);
@@ -678,6 +818,7 @@ class DatabaseService {
               name,
               phone: getVal(phoneCol).trim(),
               balance: Number(getVal(balanceCol)) || 0,
+              groupId: Number(getVal(groupCol)) || undefined,
               notes: getVal(notesCol).trim(),
             });
           }
@@ -688,20 +829,21 @@ class DatabaseService {
       const txTable = tableNames.find(t => t.toLowerCase() === 'transactions') ||
         tableNames.find(t => {
           const cols = getColumns(t);
-          return findCol(cols, 'customer_id', 'client_id', 'معرف العميل') != null &&
-            findCol(cols, 'amount', 'المبلغ', 'value') != null;
+          return findCol(cols, 'customer_id', 'cus_id', 'client_id', 'معرف العميل') != null &&
+            findCol(cols, 'amount', 'out', 'المبلغ', 'value') != null;
         });
 
       if (txTable) {
         const cols = getColumns(txTable);
-        const cidCol = findCol(cols, 'customer_id', 'client_id', 'account_id', 'العميل');
-        const typeCol = findCol(cols, 'type', 'transaction_type', 'نوع');
-        const amountCol = findCol(cols, 'amount', 'المبلغ', 'value', 'total');
+        const cidCol = findCol(cols, 'cus_id', 'customer_id', 'client_id', 'account_id', 'العميل');
+        const typeCol = findCol(cols, 'in', 'type', 'transaction_type', 'نوع');
+        const amountCol = findCol(cols, 'out', 'amount', 'المبلغ', 'value', 'total');
         const debitCol = findCol(cols, 'debit', 'مدين');
         const creditCol = findCol(cols, 'credit', 'دائن');
-        const currencyCol = findCol(cols, 'currency', 'العملة');
-        const dateCol = findCol(cols, 'date', 'datetime', 'التاريخ');
-        const noteCol = findCol(cols, 'note', 'description', 'البيان', 'ملاحظات');
+        const currencyCol = findCol(cols, 'curr_id', 'currency', 'العملة');
+        const dateCol = findCol(cols, 'date_', 'date', 'datetime', 'التاريخ');
+        const noteCol = findCol(cols, 'remarks', 'note', 'description', 'البيان', 'ملاحظات');
+        const shareRefCol = findCol(cols, 'share_ref');
 
         const res = db.exec(`SELECT * FROM "${txTable}"`);
         if (res.length > 0 && res[0].values) {
@@ -724,18 +866,26 @@ class DatabaseService {
             if (amount <= 0) amount = Math.max(deb, cred);
             if (amount <= 0) continue;
 
-            const rawType = getVal(typeCol).toUpperCase();
-            const finalType: 'DEBIT' | 'CREDIT' =
-              rawType.includes('CREDIT') || rawType.includes('دائن') || cred > 0 ? 'CREDIT' : 'DEBIT';
+            const rawType = getVal(typeCol).trim();
+            const isCredit = rawType === '-1' || rawType.toUpperCase().includes('CREDIT') || rawType.includes('دائن') || cred > 0;
+            const finalType: 'DEBIT' | 'CREDIT' = isCredit ? 'CREDIT' : 'DEBIT';
+
+            const rawCurr = getVal(currencyCol).trim();
+            let currCode = 'YER';
+            if (rawCurr === '0' || rawCurr.includes('يمن')) currCode = 'YER';
+            else if (rawCurr === '1' || rawCurr.includes('دولار') || rawCurr.toUpperCase() === 'USD') currCode = 'USD';
+            else if (rawCurr === '2' || rawCurr.includes('سعود') || rawCurr.toUpperCase() === 'SAR') currCode = 'SAR';
+            else if (rawCurr) currCode = rawCurr.toUpperCase();
 
             importedTransactions.push({
               id: txSeq++,
               customerId,
               type: finalType,
               amount,
-              currency: getVal(currencyCol).toUpperCase() || 'YER',
+              currency: currCode,
               date: getVal(dateCol) || this.now(),
               note: getVal(noteCol),
+              shareRef: getVal(shareRefCol),
             });
           }
         }
@@ -945,6 +1095,39 @@ class DatabaseService {
       };
     } catch (e: any) {
       return { ok: false, report: e.message || 'فحص غير ناجح' };
+    }
+  }
+
+  public async loadMarketDatabase(): Promise<{ ok: boolean; message: string; count: number }> {
+    try {
+      const res = await fetch('/marketData.json');
+      if (!res.ok) {
+        throw new Error('فشل قراءة ملف بيانات البقالة');
+      }
+      const data = await res.json();
+      this.state = {
+        customers: data.customers || [],
+        transactions: data.transactions || [],
+        products: data.products || [],
+        expenses: data.expenses || [],
+        invoices: data.invoices || [],
+        invoiceItems: [],
+        suppliers: [],
+        settings: { ...DEFAULT_SETTINGS, ...(data.settings || {}) },
+      };
+      this.recalculateAllBalances();
+      this.saveState();
+      return {
+        ok: true,
+        message: `تم تحميل قاعدة بيانات البقالة بنجاح: ${data.customers.length} عميل و ${data.transactions.length} عملية مسجلة!`,
+        count: data.customers.length,
+      };
+    } catch (e: any) {
+      return {
+        ok: false,
+        message: e.message || 'تعذر تحميل بيانات البقالة',
+        count: 0,
+      };
     }
   }
 

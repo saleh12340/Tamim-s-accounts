@@ -1,25 +1,31 @@
 import React, { useState } from 'react';
 import { Invoice } from '../types';
-import { formatMoney } from '../utils/formatters';
-import { ShoppingBag, ShoppingCart, Plus, Trash2, Calendar, FileText, CheckCircle } from 'lucide-react';
+import { formatMoney, compareTxNewestFirst } from '../utils/formatters';
+import { ShoppingBag, ShoppingCart, Plus, Trash2, Calendar, FileText, CheckCircle, Edit2, Share2 } from 'lucide-react';
 
 interface InvoicesViewProps {
   invoices: Invoice[];
   onAddInvoice: (type: 'SALE' | 'PURCHASE') => void;
+  onEditInvoice: (invoice: Invoice) => void;
   onDeleteInvoice: (invoice: Invoice) => void;
+  onSharePrint: (target: any) => void;
 }
 
 export const InvoicesView: React.FC<InvoicesViewProps> = ({
   invoices,
   onAddInvoice,
+  onEditInvoice,
   onDeleteInvoice,
+  onSharePrint,
 }) => {
   const [filterType, setFilterType] = useState<'ALL' | 'SALE' | 'PURCHASE'>('ALL');
 
-  const filtered = invoices.filter(inv => {
-    if (filterType === 'ALL') return true;
-    return inv.type === filterType;
-  });
+  const filtered = invoices
+    .filter(inv => {
+      if (filterType === 'ALL') return true;
+      return inv.type === filterType;
+    })
+    .sort(compareTxNewestFirst);
 
   const totalSales = invoices
     .filter(i => i.type === 'SALE')
@@ -159,13 +165,29 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => onDeleteInvoice(inv)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
-                      title="حذف الفاتورة"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0 pt-0.5 flex-col sm:flex-row">
+                      <button
+                        onClick={() => onSharePrint({ type: 'INVOICE', invoice: inv })}
+                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                        title="مشاركة وطباعة الفاتورة"
+                      >
+                        <Share2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => onEditInvoice(inv)}
+                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                        title="تعديل الفاتورة"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteInvoice(inv)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="حذف الفاتورة"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Pricing Footer */}

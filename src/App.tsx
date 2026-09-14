@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from './services/db';
-import { Customer, Tx, Product, Expense, Invoice, StoreSettings, TransactionType } from './types';
+import { Customer, Tx, Product, Expense, Invoice, InvoiceItem, StoreSettings, TransactionType } from './types';
 import { Header } from './components/Header';
 import { Navigation, TabType } from './components/Navigation';
 import { DashboardView } from './components/DashboardView';
 import { AccountsView } from './components/AccountsView';
 import { CustomerLedgerView } from './components/CustomerLedgerView';
 import { InvoicesView } from './components/InvoicesView';
-import { InventoryView } from './components/InventoryView';
 import { ExpensesView } from './components/ExpensesView';
 import { ReportsView } from './components/ReportsView';
 import { MoreView } from './components/MoreView';
@@ -23,6 +22,7 @@ import { DatabaseToolsModal } from './components/DatabaseToolsModal';
 import { BluetoothModal } from './components/BluetoothModal';
 import { AboutModal } from './components/AboutModal';
 import { PrintStatementModal } from './components/PrintStatementModal';
+import { SharePrintModal } from './components/SharePrintModal';
 
 export function App() {
   // App state from local SQLite service
@@ -56,6 +56,10 @@ export function App() {
 
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [invoiceType, setInvoiceType] = useState<'SALE' | 'PURCHASE'>('SALE');
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+
+  const [sharePrintTarget, setSharePrintTarget] = useState<any | null>(null);
+  const [isSharePrintModalOpen, setIsSharePrintModalOpen] = useState(false);
 
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isDbToolsModalOpen, setIsDbToolsModalOpen] = useState(false);
@@ -68,22 +72,28 @@ export function App() {
   // Load and sync data from db
   const reloadData = useCallback(() => {
     const s = db.getState();
-    setCustomers(s.customers);
-    setTransactions(s.transactions);
+    setCustomers(db.getCustomers());
+    setTransactions(db.getTransactions());
     setProducts(s.products);
-    setExpenses(s.expenses);
-    setInvoices(s.invoices);
+    setExpenses(db.getExpenses());
+    setInvoices(db.getInvoices());
     setSettings(s.settings);
   }, []);
 
   useEffect(() => {
     reloadData();
+    const s = db.getState();
+    if (s.customers.length <= 5) {
+      db.loadMarketDatabase().then(() => {
+        reloadData();
+      });
+    }
   }, [reloadData]);
 
   // Current active customer for ledger view
   const activeCustomer = customers.find(c => c.id === activeCustomerLedgerId) || null;
   const activeCustomerTxs = activeCustomer
-    ? transactions.filter(t => t.customerId === activeCustomer.id)
+    ? db.getTransactions(activeCustomer.id)
     : [];
 
   // Handlers for customer
@@ -192,7 +202,14 @@ export function App() {
 
   // Handlers for invoices
   const handleOpenAddInvoice = (type: 'SALE' | 'PURCHASE') => {
+    setEditingInvoice(null);
     setInvoiceType(type);
+    setIsInvoiceModalOpen(true);
+  };
+
+  const handleOpenEditInvoice = (inv: Invoice) => {
+    setEditingInvoice(inv);
+    setInvoiceType(inv.type);
     setIsInvoiceModalOpen(true);
   };
 
@@ -202,9 +219,34 @@ export function App() {
     paid: number,
     note: string,
     customerId?: number | null,
-    customerOrSupplierName?: string
+    customerOrSupplierName?: string,
+    items?: InvoiceItem[],
+    recordInCustomerLedger?: boolean
   ) => {
-    db.addInvoice(type, total, paid, note, customerId, customerOrSupplierName);
+    if (editingInvoice) {
+      db.updateInvoice(
+        editingInvoice.id,
+        type,
+        total,
+        paid,
+        note,
+        customerId,
+        customerOrSupplierName,
+        items,
+        recordInCustomerLedger
+      );
+    } else {
+      db.addInvoice(
+        type,
+        total,
+        paid,
+        note,
+        customerId,
+        customerOrSupplierName,
+        items,
+        recordInCustomerLedger
+      );
+    }
     reloadData();
   };
 
@@ -213,6 +255,11 @@ export function App() {
       db.deleteInvoice(inv.id);
       reloadData();
     }
+  };
+
+  const handleSharePrint = (target: any) => {
+    setSharePrintTarget(target);
+    setIsSharePrintModalOpen(true);
   };
 
   // Reset Demo Data
@@ -260,6 +307,7 @@ export function App() {
             onDeleteTransaction={handleDeleteTx}
             onDeleteCustomer={handleDeleteCustomer}
             onPrintStatement={handlePrintStatement}
+            onSharePrint={handleSharePrint}
           />
         ) : subView === 'expenses' ? (
           <div className="space-y-3">
@@ -287,14 +335,13 @@ export function App() {
               customers={customers}
               transactions={transactions}
               expenses={expenses}
-              products={products}
+              onOpenCustomerLedger={handleOpenLedger}
             />
           </div>
         ) : activeTab === 'home' ? (
           <DashboardView
             customers={customers}
             transactions={transactions}
-            products={products}
             onOpenCustomerLedger={handleOpenLedger}
             onAddCustomer={() => {
               setEditingCustomer(null);
@@ -302,10 +349,6 @@ export function App() {
             }}
             onAddTransaction={() => handleOpenAddTx(null)}
             onAddInvoice={handleOpenAddInvoice}
-            onAddProduct={() => {
-              setEditingProduct(null);
-              setIsProductModalOpen(true);
-            }}
             onNavigateToTab={tab => {
               setActiveTab(tab);
               setActiveCustomerLedgerId(null);
@@ -330,20 +373,16 @@ export function App() {
           <InvoicesView
             invoices={invoices}
             onAddInvoice={handleOpenAddInvoice}
+            onEditInvoice={handleOpenEditInvoice}
             onDeleteInvoice={handleDeleteInvoice}
+            onSharePrint={handleSharePrint}
           />
-        ) : activeTab === 'inventory' ? (
-          <InventoryView
-            products={products}
-            onAddProduct={() => {
-              setEditingProduct(null);
-              setIsProductModalOpen(true);
-            }}
-            onEditProduct={p => {
-              setEditingProduct(p);
-              setIsProductModalOpen(true);
-            }}
-            onDeleteProduct={handleDeleteProduct}
+        ) : activeTab === 'reports' ? (
+          <ReportsView
+            customers={customers}
+            transactions={transactions}
+            expenses={expenses}
+            onOpenCustomerLedger={handleOpenLedger}
           />
         ) : (
           <MoreView
@@ -412,6 +451,7 @@ export function App() {
         isOpen={isInvoiceModalOpen}
         type={invoiceType}
         customers={customers}
+        existingInvoice={editingInvoice}
         onClose={() => setIsInvoiceModalOpen(false)}
         onSave={handleSaveInvoice}
       />
@@ -458,6 +498,12 @@ export function App() {
           setIsPrintModalOpen(false);
           setPrintCustomer(null);
         }}
+      />
+      <SharePrintModal
+        isOpen={isSharePrintModalOpen}
+        onClose={() => setIsSharePrintModalOpen(false)}
+        target={sharePrintTarget}
+        storeSettings={settings}
       />
     </div>
   );

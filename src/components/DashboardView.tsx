@@ -1,29 +1,25 @@
 import React from 'react';
-import { Customer, Tx, Product } from '../types';
-import { formatMoney } from '../utils/formatters';
-import { Users, Receipt, Package, ArrowDownLeft, ArrowUpRight, Plus, ShoppingCart, TrendingUp } from 'lucide-react';
+import { Customer, Tx } from '../types';
+import { formatMoney, compareTxNewestFirst } from '../utils/formatters';
+import { Users, Receipt, BarChart3, ArrowDownLeft, ArrowUpRight, Plus, ShoppingCart, ShoppingBag, TrendingUp } from 'lucide-react';
 
 interface DashboardViewProps {
   customers: Customer[];
   transactions: Tx[];
-  products: Product[];
   onOpenCustomerLedger: (customerId: number) => void;
   onAddCustomer: () => void;
   onAddTransaction: () => void;
   onAddInvoice: (type: 'SALE' | 'PURCHASE') => void;
-  onAddProduct: () => void;
-  onNavigateToTab: (tab: 'accounts' | 'invoices' | 'inventory') => void;
+  onNavigateToTab: (tab: 'accounts' | 'invoices' | 'reports') => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   customers,
   transactions,
-  products,
   onOpenCustomerLedger,
   onAddCustomer,
   onAddTransaction,
   onAddInvoice,
-  onAddProduct,
   onNavigateToTab,
 }) => {
   const totalDebit = customers
@@ -36,9 +32,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const netBalance = totalDebit - totalCredit;
 
-  // Recent transactions
+  // Recent transactions (الأحدث أولاً)
   const recentTxs = [...transactions]
-    .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id)
+    .sort(compareTxNewestFirst)
     .slice(0, 5);
 
   return (
@@ -76,18 +72,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </button>
 
         <button
-          id="metric-card-products"
-          onClick={() => onNavigateToTab('inventory')}
-          className="bg-white border border-[#E1E8E4] rounded-[20px] p-3 text-center shadow-2xs hover:border-[#915F28] transition-all text-right flex flex-col justify-between"
+          id="metric-card-reports"
+          onClick={() => onNavigateToTab('reports')}
+          className="bg-white border border-[#E1E8E4] rounded-[20px] p-3 text-center shadow-2xs hover:border-[#146B50] transition-all text-right flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between text-[#915F28]">
-            <span className="text-xs font-semibold text-gray-500">الأصناف</span>
-            <Package className="w-4 h-4 opacity-75" />
+          <div className="flex items-center justify-between text-[#146B50]">
+            <span className="text-xs font-semibold text-gray-500">التقارير</span>
+            <BarChart3 className="w-4 h-4 opacity-75" />
           </div>
-          <div className="text-xl sm:text-2xl font-black text-[#915F28] mt-2">
-            {products.length}
+          <div className="text-base sm:text-lg font-black text-[#146B50] mt-2">
+            اليوم والشهر
           </div>
-          <span className="text-[11px] text-gray-400 mt-1">صنف بالمخزون</span>
+          <span className="text-[11px] text-gray-400 mt-1">سجل الحركات والأحدث</span>
         </button>
       </div>
 
@@ -178,20 +174,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             className="flex items-center gap-2 bg-white border border-[#E1E8E4] hover:bg-indigo-600 hover:text-white hover:border-indigo-600 text-indigo-700 p-3 rounded-2xl text-xs font-bold transition-all shadow-2xs group"
           >
             <div className="w-7 h-7 rounded-lg bg-indigo-100/70 group-hover:bg-white/20 flex items-center justify-center shrink-0">
-              <Package className="w-4 h-4 text-indigo-700 group-hover:text-white" />
+              <ShoppingBag className="w-4 h-4 text-indigo-700 group-hover:text-white" />
             </div>
             <span>فاتورة شراء</span>
           </button>
 
           <button
-            id="btn-shortcut-add-product"
-            onClick={onAddProduct}
-            className="col-span-2 sm:col-span-1 flex items-center gap-2 bg-white border border-[#E1E8E4] hover:bg-[#915F28] hover:text-white hover:border-[#915F28] text-[#915F28] p-3 rounded-2xl text-xs font-bold transition-all shadow-2xs group"
+            id="btn-shortcut-reports"
+            onClick={() => onNavigateToTab('reports')}
+            className="col-span-2 sm:col-span-1 flex items-center gap-2 bg-white border border-[#E1E8E4] hover:bg-[#146B50] hover:text-white hover:border-[#146B50] text-[#146B50] p-3 rounded-2xl text-xs font-bold transition-all shadow-2xs group"
           >
-            <div className="w-7 h-7 rounded-lg bg-[#915F28]/10 group-hover:bg-white/20 flex items-center justify-center shrink-0">
-              <Package className="w-4 h-4 text-[#915F28] group-hover:text-white" />
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 group-hover:bg-white/20 flex items-center justify-center shrink-0">
+              <BarChart3 className="w-4 h-4 text-[#146B50] group-hover:text-white" />
             </div>
-            <span>إضافة صنف</span>
+            <span>التقارير اليومية</span>
           </button>
         </div>
       </div>

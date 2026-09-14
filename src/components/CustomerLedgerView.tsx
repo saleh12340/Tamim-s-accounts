@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Customer, Tx } from '../types';
-import { formatMoney, generateStatementText } from '../utils/formatters';
+import { formatMoney, generateStatementText, compareTxOldestFirst } from '../utils/formatters';
 import {
   ArrowRight,
   Plus,
@@ -27,6 +27,7 @@ interface CustomerLedgerViewProps {
   onDeleteTransaction: (tx: Tx) => void;
   onDeleteCustomer: (customer: Customer) => void;
   onPrintStatement: (customer: Customer, transactions: Tx[]) => void;
+  onSharePrint: (target: any) => void;
 }
 
 export const CustomerLedgerView: React.FC<CustomerLedgerViewProps> = ({
@@ -40,14 +41,13 @@ export const CustomerLedgerView: React.FC<CustomerLedgerViewProps> = ({
   onDeleteTransaction,
   onDeleteCustomer,
   onPrintStatement,
+  onSharePrint,
 }) => {
   const [copied, setCopied] = useState(false);
 
   // Compute running balance chronologically
   let running = 0;
-  const sortedTxs = [...transactions].sort(
-    (a, b) => a.date.localeCompare(b.date) || a.id - b.id
-  );
+  const sortedTxs = [...transactions].sort(compareTxOldestFirst);
 
   const txsWithRunning = sortedTxs.map(tx => {
     running += tx.type === 'DEBIT' ? tx.amount : -tx.amount;
@@ -58,7 +58,7 @@ export const CustomerLedgerView: React.FC<CustomerLedgerViewProps> = ({
   const displayTxs = [...txsWithRunning].reverse();
 
   const handleShare = async () => {
-    const text = generateStatementText(storeName, customer, sortedTxs);
+    const text = generateStatementText(storeName, customer, displayTxs);
     if (navigator.share) {
       try {
         await navigator.share({
@@ -160,7 +160,7 @@ export const CustomerLedgerView: React.FC<CustomerLedgerViewProps> = ({
 
           <button
             id="btn-ledger-print-statement"
-            onClick={() => onPrintStatement(customer, sortedTxs)}
+            onClick={() => onPrintStatement(customer, displayTxs)}
             className="flex items-center justify-center gap-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 py-2.5 px-2 rounded-xl text-xs font-bold border border-[#E1E8E4] transition-colors"
           >
             <Printer className="w-3.5 h-3.5" />
@@ -250,7 +250,14 @@ export const CustomerLedgerView: React.FC<CustomerLedgerViewProps> = ({
                     </div>
 
                     {/* Action controls for this transaction */}
-                    <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                    <div className="flex items-center gap-1 shrink-0 pt-0.5 flex-col sm:flex-row">
+                      <button
+                        onClick={() => onSharePrint({ type: 'TRANSACTION', transaction: tx, customer })}
+                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                        title="مشاركة وطباعة العملية"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={() => onEditTransaction(tx)}
                         className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"

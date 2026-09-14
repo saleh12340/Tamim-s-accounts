@@ -20,6 +20,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'debit' | 'credit' | 'zero'>('all');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'id_desc' | 'balance_desc' | 'name_asc'>('newest');
 
   const filtered = customers.filter(c => {
     const matchesSearch =
@@ -31,6 +32,20 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
     if (filterType === 'credit') return c.balance < 0;
     if (filterType === 'zero') return c.balance === 0;
     return true;
+  });
+
+  const sortedAndFiltered = [...filtered].sort((a, b) => {
+    if (sortOrder === 'name_asc') {
+      return a.name.localeCompare(b.name, 'ar');
+    }
+    if (sortOrder === 'id_desc') {
+      return b.id - a.id;
+    }
+    if (sortOrder === 'balance_desc') {
+      return Math.abs(b.balance) - Math.abs(a.balance);
+    }
+    // 'newest': preserves incoming newest-first sort order (recent activity / ID desc)
+    return 0;
   });
 
   const totalBalance = customers.reduce((sum, c) => sum + c.balance, 0);
@@ -50,7 +65,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
         <Search className="w-4 h-4 text-gray-400 absolute right-3.5 top-3.5 pointer-events-none" />
       </div>
 
-      {/* Filter Tabs & Summary Bar */}
+      {/* Filter Tabs & Action */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 overflow-x-auto py-1">
           <button
@@ -105,21 +120,40 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
         </button>
       </div>
 
-      {/* Summary Header Note matching MainActivity */}
-      <div className="bg-white border border-[#E1E8E4] rounded-2xl px-4 py-2.5 flex items-center justify-between text-xs text-gray-600 shadow-2xs">
-        <span>
-          عدد الحسابات: <strong className="text-gray-900">{filtered.length}</strong>
-        </span>
-        <span>
-          صافي الأرصدة:{' '}
-          <strong className={totalBalance >= 0 ? 'text-[#BE3232]' : 'text-[#146B50]'}>
-            {formatMoney(Math.abs(totalBalance))} YER ({totalBalance >= 0 ? 'عليه' : 'له'})
-          </strong>
-        </span>
+      {/* Summary Header & Sort Selector */}
+      <div className="bg-white border border-[#E1E8E4] rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <span>
+            عدد الحسابات: <strong className="text-gray-900">{sortedAndFiltered.length}</strong>
+          </span>
+          <span>
+            صافي الأرصدة:{' '}
+            <strong className={totalBalance >= 0 ? 'text-[#BE3232]' : 'text-[#146B50]'}>
+              {formatMoney(Math.abs(totalBalance))} YER ({totalBalance >= 0 ? 'عليه' : 'له'})
+            </strong>
+          </span>
+        </div>
+
+        {/* Sort Selector with Default Newest First */}
+        <div className="flex items-center gap-1.5 text-xs">
+          <ArrowUpDown className="w-3.5 h-3.5 text-[#146B50]" />
+          <span className="text-gray-500 font-medium">الترتيب:</span>
+          <select
+            id="select-customer-sort"
+            value={sortOrder}
+            onChange={e => setSortOrder(e.target.value as any)}
+            className="bg-[#F7F9F8] border border-[#E1E8E4] rounded-lg px-2.5 py-1 text-xs font-bold text-[#0D4D3A] focus:outline-hidden focus:border-[#146B50] cursor-pointer"
+          >
+            <option value="newest">الأحدث أولاً (حسب آخر حركة)</option>
+            <option value="id_desc">الأحدث إضافة (المعرف ID)</option>
+            <option value="balance_desc">الأعلى رصيداً (الديون)</option>
+            <option value="name_asc">أبجدياً (أ - ي)</option>
+          </select>
+        </div>
       </div>
 
       {/* Customer List */}
-      {filtered.length === 0 ? (
+      {sortedAndFiltered.length === 0 ? (
         <div className="bg-white border border-[#E1E8E4] rounded-[22px] p-10 text-center text-gray-500 space-y-3">
           <BookOpen className="w-10 h-10 mx-auto text-gray-300 stroke-1" />
           <p className="text-sm">
@@ -138,7 +172,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
         </div>
       ) : (
         <div className="space-y-2.5">
-          {filtered.map(customer => {
+          {sortedAndFiltered.map(customer => {
             const isDebit = customer.balance > 0;
             const isCredit = customer.balance < 0;
             const isZero = customer.balance === 0;

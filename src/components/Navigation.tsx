@@ -1,7 +1,7 @@
 import React from 'react';
-import { Home, Users, FileText, Package, MoreHorizontal } from 'lucide-react';
+import { Home, Users, FileText, BarChart3, MoreHorizontal } from 'lucide-react';
 
-export type TabType = 'home' | 'accounts' | 'invoices' | 'inventory' | 'more';
+export type TabType = 'home' | 'accounts' | 'invoices' | 'reports' | 'more';
 
 interface NavigationProps {
   activeTab: TabType;
@@ -13,7 +13,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onChangeTab }
     { id: 'home' as TabType, label: 'الرئيسية', icon: Home },
     { id: 'accounts' as TabType, label: 'الحسابات', icon: Users },
     { id: 'invoices' as TabType, label: 'الفواتير', icon: FileText },
-    { id: 'inventory' as TabType, label: 'المخزون', icon: Package },
+    { id: 'reports' as TabType, label: 'التقارير', icon: BarChart3 },
     { id: 'more' as TabType, label: 'المزيد', icon: MoreHorizontal },
   ];
 

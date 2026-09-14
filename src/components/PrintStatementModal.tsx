@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Customer, Tx } from '../types';
-import { formatMoney } from '../utils/formatters';
-import { X, Printer } from 'lucide-react';
+import { formatMoney, compareTxNewestFirst, compareTxOldestFirst } from '../utils/formatters';
+import { X, Printer, ArrowUpDown } from 'lucide-react';
 
 interface PrintStatementModalProps {
   isOpen: boolean;
@@ -20,13 +20,14 @@ export const PrintStatementModal: React.FC<PrintStatementModalProps> = ({
   phone,
   onClose,
 }) => {
+  const [sortMode, setSortMode] = useState<'newest' | 'oldest'>('newest');
+
   if (!isOpen || !customer) return null;
 
   const sortedTxs = [...transactions].sort(
-    (a, b) => a.date.localeCompare(b.date) || a.id - b.id
+    sortMode === 'newest' ? compareTxNewestFirst : compareTxOldestFirst
   );
 
-  let running = 0;
   const isDebit = customer.balance > 0;
   const isCredit = customer.balance < 0;
 
@@ -38,14 +39,28 @@ export const PrintStatementModal: React.FC<PrintStatementModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-2xs">
       <div className="bg-white border border-[#E1E8E4] rounded-[24px] w-full max-w-lg p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
         {/* Modal Top Bar (hidden in actual print) */}
-        <div className="flex items-center justify-between border-b border-gray-100 pb-3 no-print">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3 no-print">
           <div className="flex items-center gap-2">
             <Printer className="w-5 h-5 text-[#146B50]" />
             <h3 className="font-black text-base text-gray-900">
               معاينة كشف الحساب والطباعة
             </h3>
           </div>
+
           <div className="flex items-center gap-2">
+            {/* Sort Toggle */}
+            <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs">
+              <ArrowUpDown className="w-3 h-3 text-gray-500" />
+              <select
+                value={sortMode}
+                onChange={e => setSortMode(e.target.value as 'newest' | 'oldest')}
+                className="bg-transparent font-medium text-gray-700 focus:outline-hidden text-xs cursor-pointer"
+              >
+                <option value="newest">الأحدث أولاً</option>
+                <option value="oldest">الأقدم أولاً</option>
+              </select>
+            </div>
+
             <button
               id="btn-trigger-browser-print"
               onClick={handlePrint}
@@ -106,7 +121,6 @@ export const PrintStatementModal: React.FC<PrintStatementModalProps> = ({
             <tbody className="divide-y divide-gray-100">
               {sortedTxs.map(tx => {
                 const txDebit = tx.type === 'DEBIT';
-                running += txDebit ? tx.amount : -tx.amount;
                 return (
                   <tr key={tx.id} className="py-1.5">
                     <td className="py-1 text-right text-[11px] font-mono text-gray-600 whitespace-nowrap">

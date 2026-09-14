@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Customer, Tx, TransactionType } from '../types';
-import { X, DollarSign, Calendar, FileText, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { suggestionsService } from '../services/suggestions';
+import { X, DollarSign, Calendar, FileText, ArrowDownLeft, ArrowUpRight, Sparkles } from 'lucide-react';
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -59,6 +60,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     setError('');
   }, [existingTx, selectedCustomer, isOpen, customers]);
 
+  const noteSuggestions = useMemo(() => {
+    return suggestionsService.getSuggestions(note);
+  }, [note]);
+
   if (!isOpen) return null;
 
   const handleSaveWithType = (chosenType: TransactionType) => {
@@ -70,6 +75,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     if (!customerId) {
       setError('يرجى اختيار العميل أولاً');
       return;
+    }
+    if (note.trim()) {
+      suggestionsService.addSuggestion(note.trim());
     }
     onSave(customerId, chosenType, val, note.trim(), currency.trim().toUpperCase(), date);
     onClose();
@@ -167,12 +175,36 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               <input
                 id="input-tx-note"
                 type="text"
+                list="tx-note-suggestions-list"
                 placeholder="مثال: شراء كيس سكر، دفعة نقدية..."
                 value={note}
                 onChange={e => setNote(e.target.value)}
                 className="w-full bg-[#F7F9F8] border border-[#E1E8E4] rounded-xl py-2.5 pr-8 pl-3 text-sm focus:bg-white focus:outline-hidden focus:border-[#146B50]"
               />
               <FileText className="w-4 h-4 text-gray-400 absolute right-2.5 top-3 pointer-events-none" />
+            </div>
+            <datalist id="tx-note-suggestions-list">
+              {noteSuggestions.map((sug, idx) => (
+                <option key={idx} value={sug} />
+              ))}
+            </datalist>
+
+            {/* Suggestion Chips */}
+            <div className="flex items-center gap-1 overflow-x-auto pt-1.5 pb-0.5 no-scrollbar text-[11px]">
+              <span className="text-gray-400 shrink-0 font-medium flex items-center gap-0.5">
+                <Sparkles className="w-3 h-3 text-[#146B50]" />
+                اقتراحات:
+              </span>
+              {noteSuggestions.slice(0, 6).map((sug, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setNote(sug)}
+                  className="shrink-0 bg-white hover:bg-emerald-50 text-gray-600 hover:text-[#0D4D3A] border border-gray-200 hover:border-[#146B50] px-2 py-0.5 rounded-lg transition-colors cursor-pointer text-[11px]"
+                >
+                  {sug}
+                </button>
+              ))}
             </div>
           </div>
 
